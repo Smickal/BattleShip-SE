@@ -15,17 +15,6 @@ public class ShipScript : MonoBehaviour
 
     GameObject clickedTile;
 
-    void Start()
-    {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
-
     public void ClearTileList()
     {
         touchTiles.Clear();
@@ -35,6 +24,12 @@ public class ShipScript : MonoBehaviour
     {
         return new Vector3(tilePos.x + XOffset,tilePos.y + YOffset,2);
     }
+
+    public Vector3 GettOffset()
+    {
+        return new Vector3(XOffset, YOffset, 2);
+    }
+
 
     public void RotateCurrentShip()
     {
@@ -47,12 +42,12 @@ public class ShipScript : MonoBehaviour
         XOffset = YOffset;
         YOffset = temp;
 
-        SetPosition(clickedTile.transform.position);
+        SetPosition();
     }
 
-    public void SetPosition(Vector3 newVec)
+    public void SetPosition()
     {
-        transform.localPosition = new Vector3(newVec.x + XOffset, newVec.y + YOffset, 2);
+        transform.localPosition = new Vector3(XOffset,YOffset, 2);
     }
 
     public void SetClickedTile(GameObject tile)
