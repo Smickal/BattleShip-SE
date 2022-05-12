@@ -10,36 +10,52 @@ public class GamePhase : MonoBehaviour
     private int[,] currentPlayerPos;
     private int[,] currentEnemyPos;
 
+    private int[,] currentPlayerShipPos = new int[11, 11];
+    private int[,] currentEnemyShipPos = new int[11, 11];
+
+    private int[,] enemyMarkedSpot = new int[11, 11];
+
     public Button nextButton;
     [SerializeField] GameObject playerHitTag;
-        
+
+    private int totalEnemySpot;
+    private int totalPlayerSpot;
+
+
     [Header("Texts")]
     [SerializeField] TextMeshProUGUI gridText;
     [SerializeField] TextMeshProUGUI topText;
     [SerializeField] GameObject textExplanation;
+    [SerializeField] TextMeshProUGUI pressAnywhereText;
 
     [Header("Tiles")]
     [SerializeField] GameObject gamePhaseTiles;
     [SerializeField] GameObject prepPhaseTiles;
+
+    [Header("End Button")]
+    [SerializeField] Button endButton;
+    [SerializeField] TextMeshProUGUI EndText;
 
 
     private GameObject currentTile = null;
 
     bool isPlayerTurn = false;
     int tileX, tileY;
+
+
     void Start()
     {
+        endButton.gameObject.SetActive(false);
+
         gameManager = GetComponent<GameManager>();
         textExplanation.SetActive(false);
+
+        currentPlayerShipPos = gameManager.currentPlayerShipPos;
+        currentEnemyShipPos = gameManager.currentEnemyShipPos;
+
+        totalEnemySpot = gameManager.GetTotalEnemySpot();
+        totalPlayerSpot = gameManager.GetTotalPlayerSpot();
     }
-
-    // Update is called once per frame
-    void Update()
-    {
-
-
-    }
-
 
 
     public void StartGame(int[,] playerShipPos, int[,] enemyShipPos)
@@ -68,14 +84,59 @@ public class GamePhase : MonoBehaviour
     {
         topText.text = "It's Your Turn!";
         isPlayerTurn = true;
+        
         EnableTiles();
         
         nextButton.onClick.RemoveAllListeners();
         nextButton.onClick.AddListener(() => PlayerLaunchMissileAtTile());
+
+        CheckForWinCondition();
+    }
+
+    private void CheckForWinCondition()
+    {
+        if(totalEnemySpot == 0)
+        {
+            DisableTiles();
+            SetWinText();
+            endButton.gameObject.SetActive(true);
+
+        }
+    }
+
+    private void CheckForLoseCondition()
+    {
+        if(totalPlayerSpot == 0)
+        {
+            DisableTiles();
+            SetLoseText();
+            endButton.gameObject.SetActive(true);
+        }
+
+    }
+
+    void SetWinText()
+    {
+        EndText.text = "You Win!!";
+        EndText.color = Color.green;
+        pressAnywhereText.color = Color.green;
+    }
+
+    void SetLoseText()
+    {
+        EndText.text = "You Lose!!";
+        EndText.color = Color.red;
+        pressAnywhereText.color = Color.red;
     }
 
     void PlayerLaunchMissileAtTile()
     {
+        if (!currentTile)
+        {
+            OpponentsTurn();
+            return;
+        }
+        
         //Temporary   
         TileScript tileScript = currentTile.GetComponent<TileScript>();
         tileScript.ThisTileUsed();
@@ -89,54 +150,50 @@ public class GamePhase : MonoBehaviour
         {
             //Missile Hit
             tileScript.SetTilePlayerHit();
+            totalEnemySpot--;
+
         }
 
         OpponentsTurn();
-    }
 
+        Debug.Log("Total Enemy Spot: " + totalEnemySpot);
+        currentTile = null;
+    }
 
     void EnemyLaunchMissileAtPlayer()
     {
         TileScript tileScript = prepPhaseTiles.GetComponentInChildren<TileScript>();
-        int tileNum;
         int randX, randY;
-        bool check = false;
-        TileScript[] allTiles = prepPhaseTiles.GetComponentsInChildren<TileScript>();
+        int tileNum;
+
         //make sure to not rand a same place twice
+        do
+        {
             randX = Random.Range(0, 10);
             randY = Random.Range(0, 10);
 
-            tileNum = randX + (randY * 10);
-        //do
-        //{
-
-        //    foreach (TileScript tile in allTiles)
-        //    {
-        //        if (tile.tileNumber == tileNum)
-        //        {
-        //            tileScript = tile.GetComponent<TileScript>();
-        //            if (tile.isThisTileChecked)
-        //            {
-        //                break;
-        //            }
-        //            else
-        //            {
-        //                check = true;
-        //            }
-        //        }
-        //    }
-
-        //} while (check);
-
-        foreach (TileScript tile in allTiles)
-        {
-            if (tile.tileNumber == tileNum)
+            if (enemyMarkedSpot[randX, randY] == 0)
             {
-                tileScript = tile.GetComponent<TileScript>();
+                enemyMarkedSpot[randX, randY] = 1;
+                break;
+            }
+
+        } while (true);
+
+        tileNum = (randY * 10) + randX;
+        Debug.Log(randX + " " + randY + "== " + tileNum);
+
+        
+
+        //Search for desired tile
+        foreach(TileScript tile in prepPhaseTiles.GetComponentsInChildren<TileScript>())
+        {
+            if(tile.tileNumber == tileNum)
+            {
+                tileScript = tile;
                 break;
             }
         }
-
 
         if (currentPlayerPos[randX, randY] == 0)
         {
@@ -146,31 +203,17 @@ public class GamePhase : MonoBehaviour
         {
             tileScript.SetTilePlayerHit();
             Instantiate(playerHitTag, tileScript.transform);
+            totalPlayerSpot--;
         }
+
+        CheckForLoseCondition();
 
         PlayersTurn();
 
+
+        Debug.Log("Total Player Spot: " + totalPlayerSpot);
     }
 
-
-    bool CheckPlace(int tileNum)
-    {
-        foreach (TileScript tile in prepPhaseTiles.GetComponentsInChildren<TileScript>())
-        {
-            if (tile.tileNumber == tileNum)
-            {
-                if(tile.isThisTileChecked)
-                {
-                    return false;
-                }
-                else
-                {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
 
 
     public void TileCliked(GameObject tile)
@@ -205,7 +248,7 @@ public class GamePhase : MonoBehaviour
 
     void RandomizedFirstTurn()
     {
-        int random = 1; //Random.Range(0, 2);
+        int random = Random.Range(0, 2);
         if (random == 1)
         {
             PlayersTurn();
