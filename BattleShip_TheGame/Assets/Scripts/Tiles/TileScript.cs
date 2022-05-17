@@ -4,22 +4,30 @@ using UnityEngine;
 
 public class TileScript : MonoBehaviour
 {
+
     GameManager gameManager;
     GamePhase gamePhase;
-    Ray ray;
     RaycastHit2D hit;
     SpriteRenderer spriteRenderer;
 
     bool missileHit = false;
     bool isTileInteractAble = true;
 
-    bool gameplayPhase = false;
     bool thisTileSelected = false;
+    bool gameplayPhase = false;
 
     public bool isThisTileUsed = false;
     public bool isThisTileChecked = false;
-    //public Color32 hoverColor;
+    public bool isGamePhaseStarted = false;
+
+    Color32 defaultHoverColor = Color.white;
+    Color32 falseHoverColor = Color.red;
+
     Color32 defaultColor;
+
+    GameObject tempTile;
+
+    //public Color32 hoverColor;
     public int tileNumber;
     void Start()
     {
@@ -94,17 +102,60 @@ public class TileScript : MonoBehaviour
         spriteRenderer.color = Color.yellow;
     }
 
+    public void SetColorNormalSelected()
+    {
+        spriteRenderer.color = defaultHoverColor;
+    }
+
+    public void setColorFalseSelected()
+    {
+        spriteRenderer.color = falseHoverColor;
+    }
+
+
+    public void ResetColorNode()
+    {
+        spriteRenderer.color = defaultColor;
+    }
+
 
     private void OnMouseEnter()
     {
-        if (isTileInteractAble && !thisTileSelected)
-            spriteRenderer.color = Color.white;
+        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        hit = Physics2D.Raycast(mousePos, Vector3.forward, float.MaxValue);
+        if (hit.collider.gameObject.name == gameObject.name)
+        {
+            tempTile = hit.collider.gameObject;
+        }
+
+        if(!thisTileSelected)
+        {
+            if (isGamePhaseStarted)
+            {
+                SetColorNormalSelected();
+            }
+            else
+            {
+                if (isTileInteractAble)
+                {
+                    if (gameManager.CheckShipOutOfbounds(tempTile))
+                    {
+                        SetColorNormalSelected();
+                    }
+                    else
+                    {
+                        setColorFalseSelected();
+                    }
+                }
+            }
+        }
+        
     }
 
     private void OnMouseExit()
     {
-        if (isTileInteractAble && !thisTileSelected)
-            spriteRenderer.color = defaultColor;
+        if (!thisTileSelected)
+            ResetColorNode();
     }
 
     public void EnableGamePhase()

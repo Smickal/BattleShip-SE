@@ -12,6 +12,10 @@ public class GameManager : MonoBehaviour
     public int totalPlayerSpot;
 
     [Header("Enemy Ships")]
+    private int enemyShipID = 1;
+    public int[,] enemyShipHealth = new int[6, 1];
+    public int[,] playerShipHealth = new int[6, 1];
+
     public int[] currentEnemyShipSize = new int[5];
     public int[,] currentEnemyShipPos = new int[11, 11];
     public int totalEnemySpot;
@@ -20,11 +24,12 @@ public class GameManager : MonoBehaviour
     int orientationRan, locationRanX, locationRanY;
 
 
-    [Header("HUD")]
+    [Header("Buttons")]
     public Button nextButton;
     public Button leftRotateButton;
     public Button rightRotateButton;
     public Button resetButton;
+    public Button randomizeButton;
 
     [Header("UI")]
     [SerializeField] TextMeshProUGUI topText;
@@ -41,33 +46,37 @@ public class GameManager : MonoBehaviour
     [SerializeField] GameObject gamePhaseTiles;
 
     private bool setupComplete = false;
-    private bool playerTurn = true;
     private int shipIndex = 0;
-    private bool hasPlacedShip = false;
-    private bool gameIsStarting = false;
+    private bool firstShipSpawned = false;
+    private bool TileColorCheck = false;
+    private bool isRandomizeButtonPressed = false;
 
     private ShipScript shipScript;
     private GameObject currentTile = null;
-    private GameObject PinPointPos = null;
+    private GameObject shipTile = null;
 
     private Vector2[] boatStartingLocation;
     GamePhase gamePhase;
 
     private void Awake()
     {
+        //Initialize buttons
         nextButton.onClick.AddListener(() => NextShipClicked());
         leftRotateButton.onClick.AddListener(() => RotateLeftCurrentShip());
         rightRotateButton.onClick.AddListener(() => RotateRightCurrentShip());
         resetButton.onClick.AddListener(() => ResetCurrentSetup());
+        randomizeButton.onClick.AddListener(() => RandomizeAllShips());
+
 
         foreach (int shipSize in currentEnemyShipSize)
         {
             totalEnemySpot += shipSize;
         }
 
-        foreach(GameObject ship in ships)
+        foreach (GameObject ship in ships)
         {
             totalPlayerSpot += ship.GetComponent<ShipScript>().shipSize;
+
         }
     }
 
@@ -92,19 +101,197 @@ public class GameManager : MonoBehaviour
 
         DisplayCurrentSelectedShip(ships[0].gameObject);
 
-        //Count all enemy Ship
-        
+        leftRotateButton.gameObject.SetActive(false);
+        rightRotateButton.gameObject.SetActive(false);
+
 
     }
 
-    void Update()
+    void StartGame()
     {
-        if (gameIsStarting)
-        {
+
+            DisableRandomizeButton();
             nextButton.onClick.RemoveAllListeners();
             PrepGamePhase();
             setupComplete = true;
-            gameIsStarting = false;
+
+    }
+    void RandomizeAllShips()
+    {
+        ResetCurrentSetup();
+        isRandomizeButtonPressed = true;
+        for(int i = 0; i < ships.Length; i++)
+        {
+            shipScript = ships[shipIndex].GetComponent<ShipScript>();
+            //Set RandomTile Placement
+            //Place that ship
+            int shipRotation = RandomizeShipOrientation();
+            //Debug.Log("ShipRotation = " + shipRotation);
+            GameObject tile =  CheckForRandomizePlayerLocation(shipRotation, shipScript.shipSize);
+            shipScript.SetShipRotation(shipRotation);
+            PlaceShip(tile);
+            PrintShipToArray(shipScript, tile);
+            shipIndex++;
+        }
+
+        
+    }
+
+    int RandomizeShipOrientation()
+    {
+        orientationRan = Random.Range(0, 4);
+
+        if (orientationRan == 0) return 0;  //arah kebawah 
+        else if (orientationRan == 1) return -90;//arah kekiri
+        else if (orientationRan == 2) return 90;//arah kekanan
+        else if (orientationRan == 3) return -180;//arah keatas
+        else return 0;
+    }
+
+    GameObject CheckForRandomizePlayerLocation(int tempRotation, int shipSize)
+    {
+        int tempX, tempY;
+        int posX, posY;
+        GameObject tile = null;
+        do
+        {
+            tempX = Random.Range(0, 10);
+            tempY = Random.Range(0, 10);
+            //Debug.Log("Ship pos: " + ((char)(tempX + 65)).ToString() + " , " + (tempY+1));
+            if (currentPlayerShipPos[tempX, tempY] != 0) continue;
+
+            int tilePos = tempX + (tempY * 10);
+            //Debug.Log("Tilenum = " + tilePos);
+
+            if (tempRotation == 0) //Check MAX Placed Area (BAWAH)
+            {
+                bool verticalCheckBawah = tilePos - (10 * (shipSize - 1)) >= 0;
+                if (!verticalCheckBawah) continue;
+            }
+            else if (tempRotation == 90 ) //Check MAX Placed Area (Kanan)
+            {
+                bool horizontalCheckKanan = 9 - (tilePos % 10) >= shipSize - 1;
+                if (!horizontalCheckKanan) continue;
+            }
+            else if (tempRotation == -90) //Check MAX Placed Area (Kiri)
+            {
+                bool horizontalCheckKiri = (tilePos % 10) >= shipSize - 1;
+                if (!horizontalCheckKiri) continue;
+            }
+            else if (tempRotation == -180) //Check MAX Placed Area (Atas)
+            {
+                bool verticalCheckAtas = tilePos + (10 * (shipSize - 1)) <= 99;
+                if (!verticalCheckAtas) continue;
+            }
+
+
+            posX = tempX;
+            posY = tempY;
+
+            bool checkCollideWithOtherShip = false;
+
+            if(tempRotation == 0)
+            {
+                for(int i = 0; i < shipSize; i++)
+                {
+                    if (currentPlayerShipPos[tempX, tempY] > 0)
+                    {
+                        checkCollideWithOtherShip = true;
+                        break;
+                    }
+                    tempY--;                           
+                }
+            }
+            else if(tempRotation == -90)
+            {
+                for (int i = 0; i < shipSize; i++)
+                {
+                    if (currentPlayerShipPos[tempX, tempY] > 0)
+                    {
+                        checkCollideWithOtherShip = true;
+                        break;
+                    }
+                    tempX--;
+                }
+            }
+            else if(tempRotation == 90)
+            {
+                for (int i = 0; i < shipSize; i++)
+                {
+                    if (currentPlayerShipPos[tempX, tempY] > 0)
+                    {
+                        checkCollideWithOtherShip = true;
+                        break;
+                    }
+                    tempX++;
+                }
+            }
+            else if(tempRotation == -180)
+            {
+                for (int i = 0; i < shipSize; i++)
+                {
+                    if (currentPlayerShipPos[tempX, tempY] > 0)
+                    {
+                        checkCollideWithOtherShip = true;
+                        break;
+                    }
+                    tempY++;
+                }
+            }
+
+
+            if(!checkCollideWithOtherShip)
+            {
+                break;
+            }
+
+
+        } while (true);
+
+        int tileTempNum = posX + (posY * 10);
+        //Debug.Log("TileTempNum :  " + tileTempNum);
+        //Search for desired tile
+        foreach (TileScript tileScript in prepPhaseTiles.GetComponentsInChildren<TileScript>())
+        {
+            if (tileScript.tileNumber == tileTempNum)
+            {
+                tile = tileScript.gameObject;
+                return tile;
+                
+            }
+        }
+
+        return null;
+    }
+
+
+    void CheckShipForNextRotation()
+    {
+        if (shipTile && shipScript)
+        {
+
+            if (CheckRotateLeftShipCollide(shipTile))
+            {
+                leftRotateButton.gameObject.SetActive(true);
+            }
+            else
+            {
+                leftRotateButton.gameObject.SetActive(false);
+            }
+
+            if (CheckRotateRightShipCollide(shipTile))
+            {
+                rightRotateButton.gameObject.SetActive(true);
+            }
+            else
+            {
+                rightRotateButton.gameObject.SetActive(false);
+            }
+        }
+        else
+        {
+            rightRotateButton.gameObject.SetActive(false);
+            leftRotateButton.gameObject.SetActive(false);
         }
     }
 
@@ -137,16 +324,20 @@ public class GameManager : MonoBehaviour
 
     void ResetCurrentSetup()
     {
+        leftRotateButton.gameObject.SetActive(false);
+        rightRotateButton.gameObject.SetActive(false);
+        EnableRandomizeButton();
+
+        isRandomizeButtonPressed = false;
+
         shipIndex = 0;
         for (int i = 0; i < ships.Length; i++)
         {
             ships[i].transform.position = boatStartingLocation[i];
             ships[i].gameObject.GetComponent<ShipScript>().ResetRotation();
         }
-        hasPlacedShip = false;
         currentTile = null;
         shipScript = ships[0].GetComponent<ShipScript>();
-        PinPointPos = null;
         //reset array
         for (int i = 0; i < 11; i++)
         {
@@ -159,158 +350,346 @@ public class GameManager : MonoBehaviour
 
     void NextShipClicked()
     {
-        if (!currentTile) return; 
-        
-        if (shipIndex <= ships.Length - 1)
+        if (!currentTile && !isRandomizeButtonPressed) return;
+        //Debug.Log("Ship Index: " + shipIndex + ",Ship Length" + ships.Length);
+
+        if (shipIndex < ships.Length - 1)
         {
             //---Check if a Ship Collide with another ship, or Out of Bounds
             //Ship Collide
-
-
             PrintShipToArray(shipScript, currentTile);
-            
             //PrintArray(currentPlayerShipPos);
-
-            if (shipIndex == ships.Length - 1)
-            {
-                //Done placing all ships
-                //Hide CurrentShip Type
-                shipTypeText.gameObject.SetActive(false);
-                shipModelText.SetActive(false);
-                //SPAWNING ALL ENEMIES
-                CreateEnemy();
-                gameIsStarting = true;
-                return;
-            }
             shipIndex++;
             shipScript = ships[shipIndex].GetComponent<ShipScript>();
-            DisplayCurrentSelectedShip(ships[shipIndex].gameObject);
-            hasPlacedShip = false;
             currentTile = null;
-            PinPointPos = null;
             // shipScript.FlashColor(Color.yellow);
+        }
+        else
+        {
+            //Done placing all ships
+            //Hide CurrentShip Type
+            shipTypeText.gameObject.SetActive(false);
+            shipModelText.SetActive(false);
+            //SPAWNING ALL ENEMIES
+            CreateEnemy();
+            StartGame();
+            return;
         }
 
 
         //Debug.Log("Current ship Index: " + shipIndex);
-        
+
     }
 
 
-    void PrintArray(int[,] miaw)
-    {
-        for (int i = 0; i < 11; i++)
-        {
-            for (int j = 0; j < 11; j++)
-            {
-                if (miaw[i, j] != 0)
-                    Debug.Log("(" + i + "," + j + ")= " + miaw[i, j].ToString());
-            }
-        }
-    }
-
-
-
-    void RotateLeftCurrentShip()
-    {
-        shipScript.RotateLeftCurrentShip();
-
-        if (CheckForHideNextButton(currentTile))
-        {
-            nextButton.gameObject.SetActive(true);
-        }
-        else
-        {
-            nextButton.gameObject.SetActive(false);
-        }
-    }
-
-    void RotateRightCurrentShip()
-    {
-        shipScript.RotateRightCurrentShip();
-
-        if (CheckForHideNextButton(currentTile))
-        {
-            nextButton.gameObject.SetActive(true);
-        }
-        else
-        {
-            nextButton.gameObject.SetActive(false);
-        }
-    }
-
-
-    public void TileClicked(GameObject tile)
-    {
-        if (setupComplete && playerTurn)
-        {
-            //drop a missile
-        }
-        else if (!setupComplete)
-        {
-            currentTile = tile;
-
-            //Dont spawn if there's a ship there
-            if(CheckShipPlace(tile))
-            {
-                PlaceShip(tile);
-                SetShipClickedTile(tile);
-                hasPlacedShip = true;
-            }
-
-            if(CheckForHideNextButton(tile))
-            {
-                nextButton.gameObject.SetActive(true);
-            }
-            else
-            {
-                nextButton.gameObject.SetActive(false);
-            }
-
-
-        }
-    }
-
-    bool CheckShipPlace(GameObject tile)
-    {
-        int tilePos = tile.GetComponent<TileScript>().tileNumber;
-        int tempX = tilePos % 10;
-        int tempY = tilePos / 10;
-
-        if(currentPlayerShipPos[tempX, tempY] > 0)
-        {
-            return false;
-        }
-        else
-        {
-            return true;
-        }
-    }
-
-
-
-
-    bool CheckForHideNextButton(GameObject tile)
+    private bool CheckRotateLeftShipCollide(GameObject tile)
     {
         ShipScript currentShip = ships[shipIndex].GetComponent<ShipScript>();
         int tilePos = tile.GetComponent<TileScript>().tileNumber;
-        //Debug.Log(tilePos);
 
-       // Debug.Log("CurrentShipRotation = "  + shipScript.currentRotation);
-        //check for max
+        bool checkAvailableforSpawn = false;
+        int tempX = tilePos % 10;
+        int tempY = tilePos / 10;
+        int currPosY = tilePos;
+
+        int tempLeft = (int)currentShip.currentRotation + 90;
+
+        if (tempLeft == 0 || tempLeft == 360) //Check Kebawah
+        {
+            bool verticalCheckBawah = tilePos - (10 * (currentShip.shipSize - 1)) >= 0;
+            //Debug.Log("BawahCheck= " + verticalCheckBawah);
+            if (!verticalCheckBawah) return false;
+
+            for (int i = 0; i < currentShip.shipSize; i++)
+            {
+                //Check ada Ship? 
+                if (currentPlayerShipPos[tempX, tempY] > 0)
+                {
+                    checkAvailableforSpawn = false;
+                    break;
+                }
+                //Check Overflow Y-axis ?
+                if (currPosY < 0 && currentPlayerShipPos[tempX, tempY] > 0)
+                {
+                    checkAvailableforSpawn = false;
+                    break;
+                }
+                else
+                {
+                    //Debug.Log("Checkin:" + tempX + tempY);
+                    checkAvailableforSpawn = true;
+                    currPosY -= 10;
+
+                }
+                tempY--;
+            }
+        }
+        else if (tempLeft == 90 || tempLeft == -270) //Check kanan
+        {
+            bool horizontalCheckKanan = 9 - (tilePos % 10) >= currentShip.shipSize - 1;
+            //Debug.Log("KiriCheck= " + horizontalCheckKiri);
+            if (!horizontalCheckKanan) return false;
+
+            for (int i = 1; i <= currentShip.shipSize; i++)
+            {
+                //check ada ship ?
+                if (currentPlayerShipPos[tempX, tempY] > 0)
+                {
+                    checkAvailableforSpawn = false;
+                    break;
+                }
+                //Check Overflow Y-axis ?
+                if (currPosY < 0 && currentPlayerShipPos[tempX, tempY] > 0)
+                {
+                    checkAvailableforSpawn = false;
+                    break;
+                }
+                else
+                {
+                    //Debug.Log("Checkin:" + tempX + tempY);
+                    checkAvailableforSpawn = true;
+
+                }
+                tempX++;
+            }
+        }
+        else if (tempLeft == -90 || tempLeft == 270) //Check kiri
+        {
+            bool horizontalCheckKiri = (tilePos % 10) >= currentShip.shipSize - 1;
+            //Debug.Log("KananCheck= " + horizontalCheckKanan);
+            if (!horizontalCheckKiri) return false;
+
+            for (int i = 1; i <= currentShip.shipSize; i++)
+            {
+                //check ada ship ?
+                if (currentPlayerShipPos[tempX, tempY] > 0)
+                {
+                    checkAvailableforSpawn = false;
+                    break;
+                }
+                //Check Overflow Y-axis ?
+                if (currPosY < 0 && currentPlayerShipPos[tempX, tempY] > 0)
+                {
+                    checkAvailableforSpawn = false;
+                    break;
+                }
+                else
+                {
+                    //Debug.Log("Checkin:" + tempX + tempY);
+                    checkAvailableforSpawn = true;
+
+                }
+                tempX--;
+            }
+        }
+        else if (tempLeft == 180 || tempLeft == -180) // check Atas
+        {
+            bool verticalCheckAtas = tilePos + (10 * (currentShip.shipSize - 1)) <= 99;
+            //Debug.Log("AtasCheck= " + verticalCheckAtas);
+            if (!verticalCheckAtas) return false;
+
+            for (int i = 0; i < currentShip.shipSize; i++)
+            {
+                //Check ada Ship? 
+                if (currentPlayerShipPos[tempX, tempY] > 0)
+                {
+                    checkAvailableforSpawn = false;
+                    break;
+                }
+                //Check Overflow Y-axis ?
+                if (currPosY < 0 && currentPlayerShipPos[tempX, tempY] > 0)
+                {
+                    checkAvailableforSpawn = false;
+                    break;
+                }
+                else
+                {
+                    //Debug.Log("Checkin:" + tempX + tempY);
+                    checkAvailableforSpawn = true;
+                    currPosY += 10;
+
+                }
+                tempY++;
+            }
+        }
+
+
+        if (checkAvailableforSpawn)
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    private bool CheckRotateRightShipCollide(GameObject tile)
+    {
+        ShipScript currentShip = ships[shipIndex].GetComponent<ShipScript>();
+        int tilePos = tile.GetComponent<TileScript>().tileNumber;
+        
+        bool checkAvailableforSpawn = false;
+        int tempX = tilePos % 10;
+        int tempY = tilePos / 10;
+        int currPosY = tilePos;
+
+        int tempRight = (int)currentShip.currentRotation - 90;
+
+        if (tempRight == 0 || tempRight == -360) //Check Kebawah
+        {
+            bool verticalCheckBawah = tilePos - (10 * (currentShip.shipSize - 1)) >= 0;
+            //Debug.Log("BawahCheck= " + verticalCheckBawah);
+            if (!verticalCheckBawah) return false;
+
+            for (int i = 0; i < currentShip.shipSize; i++)
+            {
+                //Check ada Ship? 
+                if (currentPlayerShipPos[tempX, tempY] > 0)
+                {
+                    checkAvailableforSpawn = false;
+                    break;
+                }
+                //Check Overflow Y-axis ?
+                if (currPosY < 0 && currentPlayerShipPos[tempX, tempY] > 0)
+                {
+                    checkAvailableforSpawn = false;
+                    break;
+                }
+                else
+                {
+                    //Debug.Log("Checkin:" + tempX + tempY);
+                    checkAvailableforSpawn = true;
+                    currPosY -= 10;
+
+                }
+                tempY--;
+            }
+        }
+        else if (tempRight == 90 || tempRight == -270) //Check kanan
+        {
+            bool horizontalCheckKanan = 9 - (tilePos % 10) >= currentShip.shipSize - 1;
+            //Debug.Log("KiriCheck= " + horizontalCheckKiri);
+            if (!horizontalCheckKanan) return false;
+
+            for (int i = 1; i <= currentShip.shipSize; i++)
+            {
+                //check ada ship ?
+                if (currentPlayerShipPos[tempX, tempY] > 0)
+                {
+                    checkAvailableforSpawn = false;
+                    break;
+                }
+                //Check Overflow Y-axis ?
+                if (currPosY < 0 && currentPlayerShipPos[tempX, tempY] > 0)
+                {
+                    checkAvailableforSpawn = false;
+                    break;
+                }
+                else
+                {
+                    //Debug.Log("Checkin:" + tempX + tempY);
+                    checkAvailableforSpawn = true;
+
+                }
+                tempX++;
+            }
+        }
+        else if (tempRight == -90 || tempRight == 270) //Check kiri
+        {
+            bool horizontalCheckKiri = (tilePos % 10) >= currentShip.shipSize - 1;
+            //Debug.Log("KananCheck= " + horizontalCheckKanan);
+            if (!horizontalCheckKiri) return false;
+
+            for (int i = 1; i <= currentShip.shipSize; i++)
+            {
+                //check ada ship ?
+                if (currentPlayerShipPos[tempX, tempY] > 0)
+                {
+                    checkAvailableforSpawn = false;
+                    break;
+                }
+                //Check Overflow Y-axis ?
+                if (currPosY < 0 && currentPlayerShipPos[tempX, tempY] > 0)
+                {
+                    checkAvailableforSpawn = false;
+                    break;
+                }
+                else
+                {
+                    //Debug.Log("Checkin:" + tempX + tempY);
+                    checkAvailableforSpawn = true;
+
+                }
+                tempX--;
+            }
+        }
+        else if (tempRight == 180 || tempRight == -180) // check Atas
+        {
+            bool verticalCheckAtas = tilePos + (10 * (currentShip.shipSize - 1)) <= 99;
+            //Debug.Log("AtasCheck= " + verticalCheckAtas);
+            if (!verticalCheckAtas) return false;
+
+            for (int i = 0; i < currentShip.shipSize; i++)
+            {
+                //Check ada Ship? 
+                if (currentPlayerShipPos[tempX, tempY] > 0)
+                {
+                    checkAvailableforSpawn = false;
+                    break;
+                }
+                //Check Overflow Y-axis ?
+                if (currPosY < 0 && currentPlayerShipPos[tempX, tempY] > 0)
+                {
+                    checkAvailableforSpawn = false;
+                    break;
+                }
+                else
+                {
+                    //Debug.Log("Checkin:" + tempX + tempY);
+                    checkAvailableforSpawn = true;
+                    currPosY += 10;
+
+                }
+                tempY++;
+            }
+        }
+
+
+        if (checkAvailableforSpawn)
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    public bool CheckShipOutOfbounds(GameObject tile)
+    {
+        if (shipIndex > 4) return false;
+        ShipScript currentShip = ships[shipIndex].GetComponent<ShipScript>();
+        int tilePos = tile.GetComponent<TileScript>().tileNumber;
+        bool checkAvailableforSpawn = false;
+        int tempX = tilePos % 10;
+        int tempY = tilePos / 10;
+        int currPosY = tilePos;
+
+
         if (shipScript.currentRotation == 0) //Check MAX Placed Area (BAWAH)
         {
             bool verticalCheckBawah = tilePos - (10 * (currentShip.shipSize - 1)) >= 0;
             //Debug.Log("BawahCheck= " + verticalCheckBawah);
             if (!verticalCheckBawah) return false;
         }
-        else if(shipScript.currentRotation == 90 || shipScript.currentRotation == -270) //Check MAX Placed Area (Kanan)
+        else if (shipScript.currentRotation == 90 || shipScript.currentRotation == -270) //Check MAX Placed Area (Kanan)
         {
-            bool horizontalCheckKanan = 10 - (tilePos % 10) >= currentShip.shipSize - 1;
+            bool horizontalCheckKanan = 9 - (tilePos % 10) >= currentShip.shipSize - 1;
             //Debug.Log("KiriCheck= " + horizontalCheckKiri);
             if (!horizontalCheckKanan) return false;
         }
-        else if(shipScript.currentRotation == -90 || shipScript.currentRotation == 270) //Check MAX Placed Area (Kiri)
+        else if (shipScript.currentRotation == -90 || shipScript.currentRotation == 270) //Check MAX Placed Area (Kiri)
         {
             bool horizontalCheckKiri = (tilePos % 10) >= currentShip.shipSize - 1;
             //Debug.Log("KananCheck= " + horizontalCheckKanan);
@@ -318,16 +697,11 @@ public class GameManager : MonoBehaviour
         }
         else if (shipScript.currentRotation == 180 || shipScript.currentRotation == -180) //Check MAX Placed Area (Atas)
         {
-            bool verticalCheckAtas = tilePos + (10 * (currentShip.shipSize - 1)) <= 100;
+            bool verticalCheckAtas = tilePos + (10 * (currentShip.shipSize - 1)) <= 99;
             //Debug.Log("AtasCheck= " + verticalCheckAtas);
             if (!verticalCheckAtas) return false;
         }
 
-        //checkfor Ship collide with other Ship
-        bool checkAvailableforSpawn = false;
-        int currPosY = tilePos;
-        int tempY = tilePos / 10;
-        int tempX = tilePos % 10;
 
 
         if (shipScript.currentRotation == 0) //Check Kebawah
@@ -356,7 +730,7 @@ public class GameManager : MonoBehaviour
                 tempY--;
             }
         }
-        else if(shipScript.currentRotation == 90 || shipScript.currentRotation == -270) //Check kanan
+        else if (shipScript.currentRotation == 90 || shipScript.currentRotation == -270) //Check kanan
         {
             for (int i = 1; i <= currentShip.shipSize; i++)
             {
@@ -406,7 +780,7 @@ public class GameManager : MonoBehaviour
                 tempX--;
             }
         }
-        else if(shipScript.currentRotation == 180 || shipScript.currentRotation == -180) // check Atas
+        else if (shipScript.currentRotation == 180 || shipScript.currentRotation == -180) // check Atas
         {
             for (int i = 0; i < currentShip.shipSize; i++)
             {
@@ -442,7 +816,56 @@ public class GameManager : MonoBehaviour
         {
             return false;
         }
+
     }
+
+    void RotateLeftCurrentShip()
+    { 
+        shipScript.RotateLeftCurrentShip();
+        CheckShipForNextRotation();
+    }
+
+    void RotateRightCurrentShip()
+    {
+        shipScript.RotateRightCurrentShip();
+        CheckShipForNextRotation();
+    }
+
+
+    public void TileClicked(GameObject tile)
+    {
+        if (!setupComplete)
+        {
+            currentTile = tile;
+            //Debug.Log(currentTile.GetComponent<TileScript>().tileNumber);
+            //Dont spawn if there's a ship there and out of bounds
+            if(CheckShipPlace(tile) && CheckShipOutOfbounds(tile))
+            {
+                //hide randomize button if a ship has been placed once
+                if(!firstShipSpawned)
+                {
+                    DisableRandomizeButton();
+                    firstShipSpawned = true;
+                }         
+                shipTile = tile;
+                CheckShipForNextRotation();
+                PlaceShip(tile);
+                SetShipClickedTile(tile);
+            }
+        }
+    }
+
+    bool CheckShipPlace(GameObject tile)
+    {
+        int tilePos = tile.GetComponent<TileScript>().tileNumber;
+        int tempX = tilePos % 10;
+        int tempY = tilePos / 10;
+
+        if(currentPlayerShipPos[tempX, tempY] > 0) return false;
+        else return true;
+    }
+
+
 
     void PlaceShip(GameObject tile)
     {
@@ -451,8 +874,6 @@ public class GameManager : MonoBehaviour
         ships[shipIndex].transform.SetParent(tile.transform);
         ships[shipIndex].transform.localPosition = Vector3.zero + shipScript.GettOffset();
         
-
-        PinPointPos = tile;
     }
 
     void PrintShipToArray(ShipScript shipScript, GameObject tile)
@@ -468,7 +889,8 @@ public class GameManager : MonoBehaviour
 
             for (int i = 1; i <= shipScript.shipSize; i++)
             {
-                currentPlayerShipPos[tempX, tempY] = shipScript.shipSize;
+                currentPlayerShipPos[tempX, tempY] = shipScript.shipID;
+                playerShipHealth[shipScript.shipID, 0] = shipScript.shipSize;
                 //Debug.Log("Saving: " + tempX + " " + tempY);
                 tempY--;
             }
@@ -479,7 +901,8 @@ public class GameManager : MonoBehaviour
 
             for (int i = 1; i <= shipScript.shipSize; i++)
             {
-                currentPlayerShipPos[tempX, tempY] = shipScript.shipSize;
+                currentPlayerShipPos[tempX, tempY] = shipScript.shipID;
+                playerShipHealth[shipScript.shipID, 0] = shipScript.shipSize;
                 //Debug.Log("Saving: " + tempX + " " + tempY);
                 tempX--;
             }
@@ -488,7 +911,8 @@ public class GameManager : MonoBehaviour
         {
             for (int i = 1; i <= shipScript.shipSize; i++)
             {
-                currentPlayerShipPos[tempX, tempY] = shipScript.shipSize;
+                currentPlayerShipPos[tempX, tempY] = shipScript.shipID;
+                playerShipHealth[shipScript.shipID, 0] = shipScript.shipSize;
                 //Debug.Log("Saving: " + tempX + " " + tempY);
                 tempX++;
             }
@@ -497,7 +921,8 @@ public class GameManager : MonoBehaviour
         {
             for (int i = 1; i <= shipScript.shipSize; i++)
             {
-                currentPlayerShipPos[tempX, tempY] = shipScript.shipSize;
+                currentPlayerShipPos[tempX, tempY] = shipScript.shipID;
+                playerShipHealth[shipScript.shipID, 0] = shipScript.shipSize;
                 //Debug.Log("Saving: " + tempX + " " + tempY);
                 tempY++;
             }
@@ -546,7 +971,8 @@ public class GameManager : MonoBehaviour
             // Debug.Log("CURRENT ENEMY SHIP SIZE: " + currentEnemyShipSize[currEnemyIndex]);
             for (int i = 0; i < tempSize; i++)
             {
-                currentEnemyShipPos[locationRanX, locationRanY] = tempSize;
+                currentEnemyShipPos[locationRanX, locationRanY] = enemyShipID;
+                enemyShipHealth[enemyShipID, 0] = tempSize;
                 //Debug.Log("Loc: " +locationRanX +" " + locationRanY); ;
                 Instantiate(tempProj, new Vector2(locationRanX * 1.2f, locationRanY * 1.2f), Quaternion.identity, gameObject.transform);
                 locationRanX++;
@@ -584,7 +1010,8 @@ public class GameManager : MonoBehaviour
             //Debug.Log("Current Choosed Pos: " + locationRanX + " " + locationRanY);
             for (int i = 0; i < tempSize; i++)
             {
-                currentEnemyShipPos[locationRanX, locationRanY] = tempSize;
+                currentEnemyShipPos[locationRanX, locationRanY] = enemyShipID;
+                enemyShipHealth[enemyShipID, 0] = tempSize;
                 //Debug.Log("Loc: " + locationRanX + " " + locationRanY); ;
                 Instantiate(tempProj, new Vector2(locationRanX * 1.2f, locationRanY * 1.2f), Quaternion.identity, gameObject.transform);
                 locationRanY++;
@@ -592,7 +1019,10 @@ public class GameManager : MonoBehaviour
 
 
         }
+        //Debug.Log(enemyShipHealth[enemyShipID, 0]);
+
         currEnemyIndex++;
+        enemyShipID++;
     }
 
     private void CheckForSize()
@@ -620,18 +1050,11 @@ public class GameManager : MonoBehaviour
     }
 
     void CreateEnemy()
-    {
+    {      
         for (int i = 0; i < 5; i++)
         {
-            //check that spot
-            //randomize vertical or horizontal spot
-            //randomize a spot
-            // 0 = Horizontal, 1 = Vertical
             int tempSize = currentEnemyShipSize[currEnemyIndex];
             CheckForEnemySpawnAndWrite(tempSize);
-
-            //get Current Index for ship size
-            //note that spot
         }
     }
 
@@ -649,5 +1072,21 @@ public class GameManager : MonoBehaviour
     public int GetTotalPlayerSpot()
     {
         return totalPlayerSpot;
+    }
+
+    public bool GetTileColorCheck()
+    {
+        return TileColorCheck;
+    }
+
+
+    void DisableRandomizeButton()
+    {
+        randomizeButton.gameObject.SetActive(false);
+    }
+
+    void EnableRandomizeButton()
+    {
+        randomizeButton.gameObject.SetActive(true);
     }
 }

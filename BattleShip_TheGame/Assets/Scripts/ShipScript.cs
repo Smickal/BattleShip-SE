@@ -6,11 +6,17 @@ public class ShipScript : MonoBehaviour
 {
     // Start is called before the first frame update
     List<GameObject> touchTiles = new List<GameObject>();
+    [Header("Ship Attributes")]
+    public int shipID;
+    public int shipHP;
+
+    [Header("Ship Rotation Atrributes")]
     public float offSet = 0f;
-    public float XOffset = 0f;
-    public float YOffset = 0f;
-    float nextZRotation = 90f;
     public int shipSize = 5;
+
+    float XOffset = 0f;
+    float YOffset = 0f;
+    float nextZRotation = 90f;
 
     public int currentRotation = 0;
 
@@ -22,6 +28,8 @@ public class ShipScript : MonoBehaviour
     {
         YOffset = offSet;
         XOffset = 0f;
+
+        shipHP = shipSize;
     }
 
     public void ClearTileList()
@@ -65,6 +73,14 @@ public class ShipScript : MonoBehaviour
         SetPosition();
     }
 
+    public void SetShipRotation(int shipRotation)
+    {
+        ClearTileList();
+        currentRotation = shipRotation;
+        transform.localEulerAngles = new Vector3(0, 0, shipRotation);
+        SetCurentOffset();
+        SetPosition();
+    }
 
 
     public void SetPosition()

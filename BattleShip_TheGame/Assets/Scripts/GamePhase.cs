@@ -6,20 +6,23 @@ using TMPro;
 public class GamePhase : MonoBehaviour
 {
     // Start is called before the first frame update
+    public int[,] enemyShipHealth = new int[6, 1];
+    public int[,] playerShipHealth = new int[6, 1];
+
     GameManager gameManager;
     private int[,] currentPlayerPos;
     private int[,] currentEnemyPos;
 
-    private int[,] currentPlayerShipPos = new int[11, 11];
-    private int[,] currentEnemyShipPos = new int[11, 11];
-
     private int[,] enemyMarkedSpot = new int[11, 11];
+    private int[,] playerMarkedSpot = new int[11, 11];
 
     public Button nextButton;
     [SerializeField] GameObject playerHitTag;
 
     private int totalEnemySpot;
     private int totalPlayerSpot;
+
+    RaycastHit2D hit;
 
 
     [Header("Texts")]
@@ -36,6 +39,23 @@ public class GamePhase : MonoBehaviour
     [SerializeField] Button endButton;
     [SerializeField] TextMeshProUGUI EndText;
 
+    [Header("EnemiesTurnUI")]
+    [SerializeField] GameObject enemiesTurnUI;
+    [SerializeField] TextMeshProUGUI enemiesCurrentGridText;
+    [SerializeField] TextMeshProUGUI hitOrMissedText;
+    [SerializeField] Slider timeSlider;
+    [SerializeField] float enemiesTurnTime = 3f;
+    float currentTime;
+    bool isStartTimer = false;
+
+    [Header("PlayerAndEnemyText")]
+    [SerializeField] GameObject playerText;
+    [SerializeField] TextMeshProUGUI playerShipAliveText;
+    [SerializeField] GameObject enemyText;
+    [SerializeField] TextMeshProUGUI enemyShipAliveText;
+    int currentPlayerShipAlive = 5;
+    int currentEnemyShipAlive = 5;
+
 
     private GameObject currentTile = null;
 
@@ -50,44 +70,94 @@ public class GamePhase : MonoBehaviour
         gameManager = GetComponent<GameManager>();
         textExplanation.SetActive(false);
 
-        currentPlayerShipPos = gameManager.currentPlayerShipPos;
-        currentEnemyShipPos = gameManager.currentEnemyShipPos;
 
         totalEnemySpot = gameManager.GetTotalEnemySpot();
         totalPlayerSpot = gameManager.GetTotalPlayerSpot();
+
+        timeSlider.maxValue = enemiesTurnTime;
+
+        enemiesTurnUI.SetActive(false);
+
+        playerText.SetActive(false);
+        enemyText.SetActive(false);
     }
 
 
     public void StartGame(int[,] playerShipPos, int[,] enemyShipPos)
     {
+        playerText.SetActive(true);
+        enemyText.SetActive(true);
+        
         currentPlayerPos = playerShipPos;
         currentEnemyPos = enemyShipPos;
-        nextButton.onClick.AddListener(() => OpponentsTurn());
+
+        nextButton.onClick.AddListener(() => PlayerLaunchMissileAtTile());
         textExplanation.SetActive(true);
 
+        enemyShipHealth = gameManager.enemyShipHealth;
+        playerShipHealth = gameManager.playerShipHealth;
+
+
         RandomizedFirstTurn();
+        SetGamePhaseTiles();
     }
 
     void OpponentsTurn()
     {
+        textExplanation.SetActive(false);
+        nextButton.gameObject.SetActive(false);
+        enemiesTurnUI.SetActive(true);
+
+        gridText.text = "";
+
         topText.text = "It's Enemies Turn!";
         isPlayerTurn = false;
         DisableTiles();
 
+        EnemyLaunchMissileAtPlayer();
 
-
-        nextButton.onClick.RemoveAllListeners();
-        nextButton.onClick.AddListener(() => EnemyLaunchMissileAtPlayer());
+        StartEnemyTimer();
     }
+
+    void StartEnemyTimer()
+    {
+        currentTime = enemiesTurnTime;
+        timeSlider.value = enemiesTurnTime;
+
+        isStartTimer = true;
+    }
+
+    private void Update()
+    {
+        CheckForCoundownEnemyTimer();      
+    }
+
+    void CheckForCoundownEnemyTimer()
+    {
+        if (isStartTimer)
+        {
+            timeSlider.value = currentTime;
+            currentTime -= Time.deltaTime;
+
+            if (currentTime <= 0f)
+            {
+                isStartTimer = false;
+                enemiesTurnUI.SetActive(false);
+                PlayersTurn();
+            }
+        }
+    }
+
 
     void PlayersTurn()
     {
+        textExplanation.SetActive(true);
         topText.text = "It's Your Turn!";
         isPlayerTurn = true;
         
         EnableTiles();
-        
-        nextButton.onClick.RemoveAllListeners();
+
+        nextButton.gameObject.SetActive(true);
         nextButton.onClick.AddListener(() => PlayerLaunchMissileAtTile());
 
         CheckForWinCondition();
@@ -131,25 +201,33 @@ public class GamePhase : MonoBehaviour
 
     void PlayerLaunchMissileAtTile()
     {
-        if (!currentTile)
-        {
-            OpponentsTurn();
-            return;
-        }
-        
+
+
         //Temporary   
+        if (currentTile == null) return;
         TileScript tileScript = currentTile.GetComponent<TileScript>();
         tileScript.ThisTileUsed();
+
+        if (playerMarkedSpot[tileX, tileY] == 1)
+        {
+            return;
+        }
+
+        playerMarkedSpot[tileX, tileY] = 1;
 
         if (currentEnemyPos[tileX, tileY] == 0)
         {
             //Missile Missed
             tileScript.SetTilePlayerMissed();
+            
         }
         else
         {
             //Missile Hit
             tileScript.SetTilePlayerHit();
+
+            CheckAndUpdateEnemyLives(tileScript);
+
             totalEnemySpot--;
 
         }
@@ -183,10 +261,11 @@ public class GamePhase : MonoBehaviour
         tileNum = (randY * 10) + randX;
         Debug.Log(randX + " " + randY + "== " + tileNum);
 
-        
+        string stringX = ((char)(randX + 65)).ToString();
+        enemiesCurrentGridText.text = "[" + stringX + ", " + (randY + 1) + "]";
 
         //Search for desired tile
-        foreach(TileScript tile in prepPhaseTiles.GetComponentsInChildren<TileScript>())
+        foreach (TileScript tile in prepPhaseTiles.GetComponentsInChildren<TileScript>())
         {
             if(tile.tileNumber == tileNum)
             {
@@ -195,23 +274,42 @@ public class GamePhase : MonoBehaviour
             }
         }
 
+        
+
+        tileScript.ThisTileSelected();
         if (currentPlayerPos[randX, randY] == 0)
         {
             tileScript.SetTilePlayerMissed();
+            SetEnemyMissedText();
         }
         else
         {
             tileScript.SetTilePlayerHit();
+            SetEnemyHitText();
             Instantiate(playerHitTag, tileScript.transform);
+
+            CheckAndUpdatePlayerLives(randX, randY);
+
             totalPlayerSpot--;
         }
 
         CheckForLoseCondition();
 
-        PlayersTurn();
-
 
         Debug.Log("Total Player Spot: " + totalPlayerSpot);
+    }
+    
+
+    void SetEnemyMissedText()
+    {
+        hitOrMissedText.text = "MISSED!!";
+        hitOrMissedText.color = Color.green;
+    }
+
+    void SetEnemyHitText()
+    {
+        hitOrMissedText.text = "HIT!!";
+        hitOrMissedText.color = Color.red;
     }
 
 
@@ -246,6 +344,14 @@ public class GamePhase : MonoBehaviour
         }
     }
 
+    void SetGamePhaseTiles()
+    {
+        foreach (TileScript tile in gamePhaseTiles.GetComponentsInChildren<TileScript>())
+        {
+            tile.isGamePhaseStarted = true;
+        }
+    }
+
     void RandomizedFirstTurn()
     {
         int random = Random.Range(0, 2);
@@ -275,4 +381,35 @@ public class GamePhase : MonoBehaviour
             tile.EnableInteractive();
         }
     }
+
+
+    void CheckAndUpdatePlayerLives(int posX, int posY)
+    {
+        int currentId = currentPlayerPos[posX, posY];
+        playerShipHealth[currentId, 0] -= 1;
+
+        if (playerShipHealth[currentId, 0] <= 0)
+        {
+            currentPlayerShipAlive -= 1;
+            playerShipAliveText.text = currentPlayerShipAlive.ToString();
+        }
+    }
+
+    void CheckAndUpdateEnemyLives(TileScript tile)
+    {
+        int tempX = tile.tileNumber % 10;
+        int tempY = tile.tileNumber / 10;
+
+        int currentID = currentEnemyPos[tempX, tempY];
+        enemyShipHealth[currentID, 0] -= 1;
+        
+
+        if(enemyShipHealth[currentID, 0] <= 0)
+        {
+            currentEnemyShipAlive -= 1;
+            enemyShipAliveText.text = currentEnemyShipAlive.ToString();
+        }
+    }
+
+
 }
