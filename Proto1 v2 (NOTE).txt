@@ -1,0 +1,16 @@
+New features:
+1. Randomize for player ship placements.
+2. New Indication when player can't spawn a ship at preparing phase. [RED TILE and WHITE TILE]
+3. Enemies turn (hunting phase) are now automated, base on time, currently (5 detik).
+
+Fixes:
+1. Fixed a bug where player count won't work.
+2. Fixed a bug where player can skip a turn at hunting phase.
+3. Ships now wont overlap each other.
+4. Fixed a bug where player can choose a same spot twice.
+5. Fixed a bug where Enemy can choose a same spot twice.
+
+Keep in mind that this is still a prototype, jadi
+any changes and suggestion is welcomed.
+
+Also, resizeable windowed is still dipelajarin ama aing ya hehehe.
