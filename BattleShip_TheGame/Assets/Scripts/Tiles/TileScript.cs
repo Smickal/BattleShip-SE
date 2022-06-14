@@ -13,15 +13,24 @@ public class TileScript : MonoBehaviour
     bool missileHit = false;
     bool isTileInteractAble = true;
 
-    bool thisTileSelected = false;
+
     bool gameplayPhase = false;
 
+
+    public bool thisTileSelected = false;
+    public bool isTileGrey = false;
+    public bool isTileRed = false;
+    public bool isTileinAttackRange = false;
     public bool isThisTileUsed = false;
     public bool isThisTileChecked = false;
     public bool isGamePhaseStarted = false;
+    bool thisTileUsedForMissedOrHit = false;
 
     Color32 defaultHoverColor = Color.white;
     Color32 falseHoverColor = Color.red;
+
+    public bool isMoveAble = false;
+    public int shipTileId;
 
     Color32 defaultColor;
 
@@ -41,8 +50,9 @@ public class TileScript : MonoBehaviour
     
     void Update()
     {
-        if(isTileInteractAble)
+        if (isTileInteractAble)
         {
+            
             Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             hit = Physics2D.Raycast(mousePos, Vector3.forward, float.MaxValue);
             if (hit.collider && Input.GetKeyDown(KeyCode.Mouse0))
@@ -51,23 +61,27 @@ public class TileScript : MonoBehaviour
                 {
                     if (!missileHit && !gameplayPhase)
                     {
-                        gameManager.TileClicked(hit.collider.gameObject);   
+                        gameManager.TileClicked(hit.collider.gameObject);
                     }
 
-                    if(gameplayPhase && !isThisTileUsed)
+                    if (gameplayPhase && !isThisTileUsed && isTileinAttackRange)
                     {
                         gamePhase.TileCliked(hit.collider.gameObject);
                     }
+
                 }
+                //Debug.Log("Hit");
             }
         }
 
+        
     }
 
     public void DisableInteractive()
     {
         isTileInteractAble = false;
     }
+
 
     public void EnableInteractive()
     {
@@ -77,25 +91,31 @@ public class TileScript : MonoBehaviour
     public void SetTilePlayerDamaged()
     {
         spriteRenderer.color = Color.red;
-        
+        isTileRed = true;
     }
 
     public void SetTilePlayerMissed()
     {
         spriteRenderer.color = Color.gray;
+        isTileGrey = true;
         isThisTileChecked = true;
+        thisTileUsedForMissedOrHit = true;
     }
 
-    public void SetTilePlayerHit()
+    public void SetTilePlayerHit(int shipTile)
     {
-        spriteRenderer.color = Color.green;
+        spriteRenderer.color = Color.red;
+        isTileRed = true;
         isThisTileChecked = true;
+        shipTileId = shipTile;
     }
 
     public void ResetColor()
     {
+        if (thisTileUsedForMissedOrHit) return;
         spriteRenderer.color = defaultColor;
     }
+
 
     public void SetColorForSelected()
     {
@@ -112,10 +132,9 @@ public class TileScript : MonoBehaviour
         spriteRenderer.color = falseHoverColor;
     }
 
-
-    public void ResetColorNode()
+    public void SetToGreenColor()
     {
-        spriteRenderer.color = defaultColor;
+        spriteRenderer.color = Color.green;
     }
 
 
@@ -127,12 +146,21 @@ public class TileScript : MonoBehaviour
         {
             tempTile = hit.collider.gameObject;
         }
+        else return;
 
         if(!thisTileSelected)
         {
             if (isGamePhaseStarted)
             {
-                SetColorNormalSelected();
+                if(isTileinAttackRange)
+                {
+                    SetColorNormalSelected();
+                }
+                else
+                {
+                    setColorFalseSelected();
+                }
+
             }
             else
             {
@@ -154,8 +182,17 @@ public class TileScript : MonoBehaviour
 
     private void OnMouseExit()
     {
-        if (!thisTileSelected)
-            ResetColorNode();
+        if (!thisTileSelected) ResetColor();
+        if (thisTileSelected) return;
+        if (isTileinAttackRange && isGamePhaseStarted)
+        {
+            SetToGreenColor();
+        }
+        else
+        {
+            ResetColor();
+        }
+
     }
 
     public void EnableGamePhase()
@@ -172,5 +209,10 @@ public class TileScript : MonoBehaviour
     {
         isThisTileUsed = true;
         isTileInteractAble = false;
+    }
+
+    public void SetDefaultColor()
+    {
+        spriteRenderer.color = defaultColor;
     }
 }
